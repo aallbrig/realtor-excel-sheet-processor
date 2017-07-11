@@ -45,7 +45,7 @@ public class App
                 Cell columnA = row.getCell(0);  // agent id
                 Cell columnH = row.getCell(4);  // agent name
                 Cell columnI = row.getCell(5);  // agent comments
-                Cell columnB = row.getCell(5);  // maybe overflow comments
+                Cell columnB = row.getCell(1);  // maybe overflow comments
                 String colAVal = formatter.formatCellValue(columnA);
                 String colHVal = formatter.formatCellValue(columnH);
                 String colIVal = formatter.formatCellValue(columnI);
