@@ -58,7 +58,7 @@ public class App
                     + (!colIVal.contentEquals("") ? ", col I - " + colIVal : "")
                     + (!colBVal.contentEquals("") ? ", col B - " + colBVal : "")
                 );
-                if (colAVal == "" && colHVal == "") {
+                if (colAVal == "" || colHVal == "") {
                     ignoredRows += 1;
                     System.out.println("...ignoring row");
                 } else if (!(colAVal == "" && colHVal == "")) {
