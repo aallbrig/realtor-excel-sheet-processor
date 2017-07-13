@@ -13,6 +13,7 @@ import java.util.*;
 
 public class App
 {
+
     public static String humanReadableSeconds (long seconds) {
         return String.format("%02d hours %02d minutes %02d seconds", seconds / 3600, (seconds % 3600) / 60, (seconds % 60));
     }
@@ -25,9 +26,14 @@ public class App
         CommandLineParser parser = new DefaultParser();
         Set<String> uniqueAgentNames = new HashSet<>();
         Set<String> uniqueAgentIds = new HashSet<>();
+        // Keep track of unique rows that are _ignored_ and clear this when you see a row that _matches_
+        // TODO: Make into hash map
+        Set<String> uniqueRowsInReadState = new HashSet<>();
         Duration programDuration;
         int ignoredRows = 0;
         int totalRowsProcessed = 0;
+        boolean readState = false;
+
 
         options.addOption("i", true, "Input file");
         options.addOption("o", false, "Output file");
@@ -39,6 +45,7 @@ public class App
             Instant wbOpenComplete = new Date().toInstant();
             long workbookOpenTimeInSeconds = Duration.between(wbOpenStartTime, wbOpenComplete).getSeconds();
             Sheet sheet1 = wb.getSheetAt(0);
+            // TODO: Reconsider how "total rows processed" is computed.
             totalRowsProcessed = sheet1.getPhysicalNumberOfRows();
 
             for (Row row : sheet1) {
@@ -61,13 +68,21 @@ public class App
                 if (colAVal == "" || colHVal == "") {
                     ignoredRows += 1;
                     System.out.println("...ignoring row");
+                    // if readState
+                    if (readState)
+                        uniqueAgentNames.add(colHVal);
+                      // read in specific column values into memory
                 } else if (!(colAVal == "" && colHVal == "")) {
                     if (!uniqueAgentNames.contains(colHVal))
                         uniqueAgentNames.add(colHVal);
                     if (!uniqueAgentIds.contains(colAVal))
                         uniqueAgentIds.add(colAVal);
+                    // stop read state when matching a valid rule set (this elif)
+                    if (readState)
+                        readState = false;
                 }
             }
+
             System.out.println("Workbook Open Time: " + App.humanReadableSeconds(workbookOpenTimeInSeconds));
         }
 
