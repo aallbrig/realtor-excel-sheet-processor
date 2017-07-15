@@ -68,18 +68,22 @@ public class App
                 if (colAVal == "" || colHVal == "") {
                     ignoredRows += 1;
                     System.out.println("...ignoring row");
-                    // if readState
-                    if (readState)
-                        uniqueAgentNames.add(colHVal);
-                      // read in specific column values into memory
+                    if (colBVal != "" && readState)
+                        uniqueRowsInReadState.add(colBVal);
                 } else if (!(colAVal == "" && colHVal == "")) {
                     if (!uniqueAgentNames.contains(colHVal))
                         uniqueAgentNames.add(colHVal);
                     if (!uniqueAgentIds.contains(colAVal))
                         uniqueAgentIds.add(colAVal);
                     // stop read state when matching a valid rule set (this elif)
-                    if (readState)
+                    if (readState) {
                         readState = false;
+                        // if read in rows > 0
+                        // add collected values, then...
+                        // uniqueRowsInReadState.clear();
+                    } else {
+                        readState = true;
+                    }
                 }
             }
 
@@ -88,6 +92,7 @@ public class App
 
         System.out.println("# of Unique Agent Names: " + uniqueAgentNames.size());
         System.out.println("# of Unique Agent Names: " + uniqueAgentIds.size());
+        System.out.println("# of Unique Rows in Read State: " + uniqueRowsInReadState.size());
         System.out.println("total number of rows processed: " + totalRowsProcessed);
         System.out.println("ignored rows: " + ignoredRows);
         System.out.println("rows that match rule set: " + (totalRowsProcessed - ignoredRows));
