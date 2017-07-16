@@ -9,96 +9,100 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
+
+import com.andrewallbright.app.options.*;
+import com.andrewallbright.app.rules.Rules;
 
 
-public class App
-{
+public class App {
+    private static DataFormatter formatter;
+    static { formatter = new DataFormatter(); }
 
-    public static String humanReadableSeconds (long seconds) {
+    public static String humanReadableSeconds(long seconds) {
         return String.format("%02d hours %02d minutes %02d seconds", seconds / 3600, (seconds % 3600) / 60, (seconds % 60));
     }
-    public static void main( String[] args ) throws IOException, InvalidFormatException, ParseException {
+
+    public static void main(String[] args) throws IOException, InvalidFormatException, ParseException {
         System.out.println("Program Start");
         Instant startTime = new Date().toInstant();
+        Duration programDuration;
 
-        DataFormatter formatter = new DataFormatter();
         Options options = new Options();
         CommandLineParser parser = new DefaultParser();
-        Set<String> uniqueAgentNames = new HashSet<>();
-        Set<String> uniqueAgentIds = new HashSet<>();
-        // Keep track of unique rows that are _ignored_ and clear this when you see a row that _matches_
-        // TODO: Make into hash map
-        Set<String> uniqueRowsInReadState = new HashSet<>();
-        Duration programDuration;
-        int ignoredRows = 0;
-        int totalRowsProcessed = 0;
-        boolean readState = false;
-
-
         options.addOption("i", true, "Input file");
         options.addOption("o", false, "Output file");
         CommandLine cmd = parser.parse(options, args);
 
         if (cmd.hasOption("i")) {
             Instant wbOpenStartTime = new Date().toInstant();
-            Workbook wb = WorkbookFactory.create(new File(cmd.getOptionValue("i")));
-            Instant wbOpenComplete = new Date().toInstant();
-            long workbookOpenTimeInSeconds = Duration.between(wbOpenStartTime, wbOpenComplete).getSeconds();
-            Sheet sheet1 = wb.getSheetAt(0);
-            // TODO: Reconsider how "total rows processed" is computed.
-            totalRowsProcessed = sheet1.getPhysicalNumberOfRows();
+            try (Workbook wb = WorkbookFactory.create(new File(cmd.getOptionValue("i")))) {
+                Instant wbOpenComplete = new Date().toInstant();
+                Duration workbookOpenDuration = Duration.between(wbOpenStartTime, wbOpenComplete);
+                Sheet sheet1 = wb.getSheetAt(SheetOption.PRIMARY_SHEET.value());
+                int totalRowsProcessed = sheet1.getPhysicalNumberOfRows();
 
-            for (Row row : sheet1) {
-                Cell columnA = row.getCell(0);  // agent id
-                Cell columnH = row.getCell(4);  // agent name
-                Cell columnI = row.getCell(5);  // agent comments
-                Cell columnB = row.getCell(1);  // maybe overflow comments
-                String colAVal = formatter.formatCellValue(columnA);
-                String colHVal = formatter.formatCellValue(columnH);
-                String colIVal = formatter.formatCellValue(columnI);
-                String colBVal = formatter.formatCellValue(columnB);
-                System.out.println("row " + row.getRowNum());
-                System.out.println(
-                    "    "
-                    + (!colAVal.contentEquals("") ? ", col A - " + colAVal : "")
-                    + (!colHVal.contentEquals("") ? ", col H - " + colHVal : "")
-                    + (!colIVal.contentEquals("") ? ", col I - " + colIVal : "")
-                    + (!colBVal.contentEquals("") ? ", col B - " + colBVal : "")
-                );
-                if (colAVal == "" || colHVal == "") {
-                    ignoredRows += 1;
-                    System.out.println("...ignoring row");
-                    if (colBVal != "" && readState)
-                        uniqueRowsInReadState.add(colBVal);
-                } else if (!(colAVal == "" && colHVal == "")) {
-                    if (!uniqueAgentNames.contains(colHVal))
-                        uniqueAgentNames.add(colHVal);
-                    if (!uniqueAgentIds.contains(colAVal))
-                        uniqueAgentIds.add(colAVal);
-                    // stop read state when matching a valid rule set (this elif)
-                    if (readState) {
-                        readState = false;
-                        // if read in rows > 0
-                        // add collected values, then...
-                        // uniqueRowsInReadState.clear();
-                    } else {
-                        readState = true;
-                    }
+                // TODO: Find out better way to write below code.  Ideally, I could use (Row row : sheet1)
+                // generate a streamable collection.
+                HashSet<Row> rowList = new HashSet<>();
+                for (Row row : sheet1) {
+                    rowList.add(row);
                 }
+
+                Set<Row> headerRow = rowList.stream()
+                    .filter(Rules::isRowWithCorrectHeaders)
+                    .collect(Collectors.toSet());
+
+                Set<String> headerRowColVals = headerRow.stream()
+                    .flatMap(r -> {
+                        HashSet<String> tmp = new HashSet<>();
+                        for (Cell c : r) tmp.add(formatter.formatCellValue(c));
+                        return tmp.stream();
+                    })
+                    .collect(Collectors.toSet());
+
+                Set<Row> ignoredRows = rowList.stream()
+                    .filter(Rules::isIgnoredRow)
+                    .collect(Collectors.toSet());
+
+                Set<String> uniqueAgentNames = rowList.stream()
+                    .map(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_H.value())))
+                    .collect(Collectors.toSet());
+
+                Set<String> uniqueAgentIds = rowList.stream()
+                        .map(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_A.value())))
+                        .collect(Collectors.toSet());
+
+                // TODO: Do something with these variables
+                Set<Row> firstRow = rowList.stream()
+                        .filter(Rules::isFirstRow)
+                        .collect(Collectors.toSet());
+                Set<Row> rowsWithOverflowComments = rowList.stream()
+                        .filter(Rules::isRowWithOverflowComments)
+                        .collect(Collectors.toSet());
+                Set<Row> validTargetRows = rowList.stream()
+                        .filter(Rules::isValidTargetRow)
+                        .collect(Collectors.toSet());
+
+                System.out.println("Workbook Open Time: " + App.humanReadableSeconds(workbookOpenDuration.getSeconds()));
+                headerRowColVals.forEach((headerVal) -> System.out.println("Header Value: " + headerVal));
+                System.out.println("total number of rows processed: " + totalRowsProcessed);
+                System.out.println("# of Unique Agent Names: " + uniqueAgentNames.size());
+                System.out.println("# of Unique Agent Names: " + uniqueAgentIds.size());
+                System.out.println("# of ignored rows: " + ignoredRows.size());
+                System.out.println("rows that match rule set: " + (totalRowsProcessed - ignoredRows.size()));
+
+                System.out.println("Program End");
+                programDuration = Duration.between(startTime, new Date().toInstant());
+                System.out.println("Program Duration: " + App.humanReadableSeconds(programDuration.getSeconds()));
+            } catch (NullPointerException e) {
+                System.out.println("\n\n\n:( NPE while reading file\n\n");
+
+                System.out.println("\n\n\nProgram End");
+                programDuration = Duration.between(startTime, new Date().toInstant());
+                System.out.println("Program Duration: " + App.humanReadableSeconds(programDuration.getSeconds()));
+                throw(e);
             }
-
-            System.out.println("Workbook Open Time: " + App.humanReadableSeconds(workbookOpenTimeInSeconds));
         }
-
-        System.out.println("# of Unique Agent Names: " + uniqueAgentNames.size());
-        System.out.println("# of Unique Agent Names: " + uniqueAgentIds.size());
-        System.out.println("# of Unique Rows in Read State: " + uniqueRowsInReadState.size());
-        System.out.println("total number of rows processed: " + totalRowsProcessed);
-        System.out.println("ignored rows: " + ignoredRows);
-        System.out.println("rows that match rule set: " + (totalRowsProcessed - ignoredRows));
-
-        System.out.println("Program End");
-        programDuration = Duration.between(startTime, new Date().toInstant());
-        System.out.println("Program Duration: " + App.humanReadableSeconds(programDuration.getSeconds()));
     }
 }
