@@ -8,5 +8,6 @@ public class SheetOptionTest {
     public void checksPrimarySheetIndex() {
         System.out.println(0 == SheetOption.PRIMARY_SHEET.value());
         assertEquals(0, SheetOption.PRIMARY_SHEET.value());
+        assertEquals(1, SheetOption.values().length);
     }
 }

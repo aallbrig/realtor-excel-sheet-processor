@@ -14,6 +14,10 @@ import java.util.stream.Collectors;
 import com.andrewallbright.app.options.*;
 import com.andrewallbright.app.rules.Rules;
 
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.mapping;
+import static java.util.stream.Collectors.toList;
+
 
 public class App {
     private static DataFormatter formatter;
@@ -29,9 +33,9 @@ public class App {
         Duration programDuration;
 
         Options options = new Options();
-        CommandLineParser parser = new DefaultParser();
         options.addOption("i", true, "Input file");
         options.addOption("o", false, "Output file");
+        CommandLineParser parser = new DefaultParser();
         CommandLine cmd = parser.parse(options, args);
 
         if (cmd.hasOption("i")) {
@@ -39,18 +43,18 @@ public class App {
             try (Workbook wb = WorkbookFactory.create(new File(cmd.getOptionValue("i")))) {
                 Instant wbOpenComplete = new Date().toInstant();
                 Duration workbookOpenDuration = Duration.between(wbOpenStartTime, wbOpenComplete);
-                Sheet sheet1 = wb.getSheetAt(SheetOption.PRIMARY_SHEET.value());
-                int totalRowsProcessed = sheet1.getPhysicalNumberOfRows();
+                Sheet sheet = wb.getSheetAt(SheetOption.PRIMARY_SHEET.value());
+
+                System.out.println("Row Breaks" + Arrays.toString(sheet.getRowBreaks());
+                int totalRowsProcessed = sheet.getPhysicalNumberOfRows();
 
                 // TODO: Find out better way to write below code.  Ideally, I could use (Row row : sheet1)
                 // generate a streamable collection.
                 HashSet<Row> rowList = new HashSet<>();
-                for (Row row : sheet1) {
-                    rowList.add(row);
-                }
+                for (Row row : sheet) rowList.add(row);
 
                 Set<Row> headerRow = rowList.stream()
-                    .filter(Rules::isRowWithCorrectHeaders)
+                    .filter(Rules::isWithValidHeadersRow)
                     .collect(Collectors.toSet());
 
                 Set<String> headerRowColVals = headerRow.stream()
@@ -66,31 +70,57 @@ public class App {
                     .collect(Collectors.toSet());
 
                 Set<String> uniqueAgentNames = rowList.stream()
+                    .filter(r -> !Rules.isWithValidHeadersRow(r))
                     .map(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_H.value())))
                     .collect(Collectors.toSet());
 
                 Set<String> uniqueAgentIds = rowList.stream()
-                        .map(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_A.value())))
-                        .collect(Collectors.toSet());
+                    .filter(r -> !Rules.isWithValidHeadersRow(r))
+                    .map(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_A.value())))
+                    .collect(Collectors.toSet());
 
                 // TODO: Do something with these variables
-                Set<Row> firstRow = rowList.stream()
-                        .filter(Rules::isFirstRow)
-                        .collect(Collectors.toSet());
-                Set<Row> rowsWithOverflowComments = rowList.stream()
-                        .filter(Rules::isRowWithOverflowComments)
-                        .collect(Collectors.toSet());
                 Set<Row> validTargetRows = rowList.stream()
-                        .filter(Rules::isValidTargetRow)
-                        .collect(Collectors.toSet());
+                    .filter(r -> !Rules.isWithValidHeadersRow(r))
+                    .filter(Rules::isWithValidAgentTarget)
+                    .collect(Collectors.toSet());
+
+                Set<Row> rowsWithOverflowComments = rowList.stream()
+                    .filter(r -> !Rules.isWithValidHeadersRow(r))
+                    .filter(Rules::isWithOverflowCommentRow)
+                    .collect(Collectors.toSet());
+
+//                Map<String, List<Row>> x = rowList.stream()
+//                    .collect(groupingBy(
+//                        r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_A.value())),
+//                        mapping(r -> r, toList())
+//                    ));
+
+                Map<String, List<String>> y = rowList.stream()
+                    .filter(r -> Rules.isWithValidAgentTarget(r) || Rules.isWithOverflowCommentRow(r))
+                    .sorted(Comparator.comparing(Row::getRowNum))
+                    .collect(groupingBy(
+                        r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_A.value())),
+                        mapping(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_H.value())), toList())
+                    ));
+
+                Map<String, List<String>> y = rowList.stream()
+                        .filter(r -> Rules.isWithValidAgentTarget(r) || Rules.isWithOverflowCommentRow(r))
+                        .sorted(Comparator.comparing(Row::getRowNum))
+                        .collect(groupingBy(
+                                r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_A.value())),
+                                mapping(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_H.value())), toList())
+                        ));
+//                Map<String, List<Row>> z = rowList.stream()
+//                    .filter(r -> Rules.isWithValidAgentTarget(r) || Rules.isWithOverflowCommentRow(r));
 
                 System.out.println("Workbook Open Time: " + App.humanReadableSeconds(workbookOpenDuration.getSeconds()));
                 headerRowColVals.forEach((headerVal) -> System.out.println("Header Value: " + headerVal));
                 System.out.println("total number of rows processed: " + totalRowsProcessed);
                 System.out.println("# of Unique Agent Names: " + uniqueAgentNames.size());
-                System.out.println("# of Unique Agent Names: " + uniqueAgentIds.size());
+                System.out.println("# of Unique Agent Ids: " + uniqueAgentIds.size());
                 System.out.println("# of ignored rows: " + ignoredRows.size());
-                System.out.println("rows that match rule set: " + (totalRowsProcessed - ignoredRows.size()));
+                System.out.println("# of rows that match rule set: " + (totalRowsProcessed - ignoredRows.size()));
 
                 System.out.println("Program End");
                 programDuration = Duration.between(startTime, new Date().toInstant());
