@@ -62,28 +62,6 @@ public class App {
                     })
                     .collect(Collectors.toSet());
 
-                // TODO: Do something with these variables
-//                Set<Row> ignoredRows = rowList.stream()
-//                    .filter(Rules::isIgnoredRow)
-//                    .collect(Collectors.toSet());
-//
-//                Set<String> uniqueAgentNames = rowList.stream()
-//                    .filter(r -> !Rules.isWithValidHeadersRow(r))
-//                    .map(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_H.value())))
-//                    .collect(Collectors.toSet());
-//
-//                Set<String> uniqueAgentIds = rowList.stream()
-//                    .filter(r -> !Rules.isWithValidHeadersRow(r))
-//                    .map(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_A.value())))
-//                    .collect(Collectors.toSet());
-                // note: This seems to be a basis for a test assertion
-//                Set<Optional<String>> countOfOverflowComments = rowList
-//                    .parallelStream()
-//                    .filter(ValidOverflowCommentRow::isValid)
-//                    .map(ValidOverflowCommentRow::new)
-//                    .map(r -> r.agentOverflowComment)
-//                    .collect(Collectors.toSet());
-
                 List<Map.Entry<ValidTargetAgentRow, Optional<Set<ValidOverflowCommentRow>>>> targetRowsToOverflowRows = IntStream.range(0, rowList.size())
                     .parallel()
                     .filter(index -> {
@@ -111,11 +89,36 @@ public class App {
                     .filter(entry -> entry.getValue().isPresent())
                     .collect(Collectors.toList());
 
-                System.out.println("here");
+                // note: This seems to be a basis for a test assertion
+                Set<ValidOverflowCommentRow> overflowRowsFromAgentRows = agentRowsWithOverflowComments.stream()
+                    .map(Map.Entry::getValue).map(Optional::get).flatMap(Collection::stream).collect(Collectors.toSet());
+                Set<Optional<String>> overflowRowsFromCompleteRowSet = rowList
+                    .parallelStream()
+                    .filter(ValidOverflowCommentRow::isValid)
+                    .map(ValidOverflowCommentRow::new)
+                    .map(r -> r.agentOverflowComment)
+                    .collect(Collectors.toSet());
+                System.out.println("overflowRowsFromAgentRows.size() == overflowRowsFromCompleteRowSet.size() ?");
+                System.out.println(overflowRowsFromAgentRows.size() == overflowRowsFromCompleteRowSet.size());
+                // Above should be false, as written, because there are invalid agent rows that have overflow comments.
 
                 System.out.println("Workbook Open Time: " + App.humanReadableSeconds(workbookOpenDuration.getSeconds()));
                 headerRowColVals.forEach((headerVal) -> System.out.println("Header Value: " + headerVal));
                 System.out.println("total number of rows processed: " + totalRowsProcessed);
+                // TODO: Do something with these variables
+//                Set<Row> ignoredRows = rowList.stream()
+//                    .filter(Rules::isIgnoredRow)
+//                    .collect(Collectors.toSet());
+//
+//                Set<String> uniqueAgentNames = rowList.stream()
+//                    .filter(r -> !Rules.isWithValidHeadersRow(r))
+//                    .map(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_H.value())))
+//                    .collect(Collectors.toSet());
+//
+//                Set<String> uniqueAgentIds = rowList.stream()
+//                    .filter(r -> !Rules.isWithValidHeadersRow(r))
+//                    .map(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_A.value())))
+//                    .collect(Collectors.toSet());
 //                System.out.println("# of Unique Agent Names: " + uniqueAgentNames.size());
 //                System.out.println("# of Unique Agent Ids: " + uniqueAgentIds.size());
 //                System.out.println("# of ignored rows: " + ignoredRows.size());
