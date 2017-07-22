@@ -99,13 +99,13 @@ public class RulesTest {
     }
 
 //    @Test
-//    public void isWithOverflowCommentRow() throws Exception {
+//    public void isWithValidOverflowComment() throws Exception {
 //        Workbook wb = new HSSFWorkbook();
 //        Sheet sheet = wb.createSheet("test sheet");
 //        Row validRow = sheet.createRow(1);
 //        Row invalidRow = sheet.createRow(2);
-//        assertEquals(true, Rules.isWithOverflowCommentRow(validRow));
-//        assertEquals(false, Rules.isWithOverflowCommentRow(invalidRow));
+//        assertEquals(true, Rules.isWithValidOverflowComment(validRow));
+//        assertEquals(false, Rules.isWithValidOverflowComment(invalidRow));
 //    }
 //
 //

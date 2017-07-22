@@ -7,11 +7,20 @@ import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.Temporal;
+import java.util.Date;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 public class Rules {
     private static DataFormatter formatter;
-    static { formatter = new DataFormatter(); }
+    private static Pattern contactIdValue;
+    static {
+        formatter = new DataFormatter();
+        contactIdValue = Pattern.compile("^(((\\w){3,}+(-)?){4,})");
+    }
 
     public static Boolean isRowWithDate(Row targetRow) {
         Cell maybeDate = targetRow.getCell(RowOption.COLUMN_C.value());
@@ -40,22 +49,32 @@ public class Rules {
             .reduce(true, (r1, r2) -> r1 && r2);
     }
 
-    public static Boolean isWithOverflowCommentRow(Row targetRow) {
+    public static Boolean isWithInvalidAgentTarget(Row targetRow) {
+        String maybeContactId = formatter.formatCellValue(targetRow.getCell(RowOption.COLUMN_B.value()));
+        return contactIdValue.matcher(maybeContactId).matches() && !isWithValidAgentTarget(targetRow);
+    }
+
+    public static Boolean isWithValidOverflowComment(Row targetRow) {
+        Instant methodStartTime = new Date().toInstant();
         String colAValue = formatter.formatCellValue(targetRow.getCell(RowOption.COLUMN_A.value()));
         String colBValue = formatter.formatCellValue(targetRow.getCell(RowOption.COLUMN_B.value()));
         String colGValue = formatter.formatCellValue(targetRow.getCell(RowOption.COLUMN_G.value()));
-//        Sentence maybeSentence = new Sentence(colBValue);
-//        SemanticGraph x = maybeSentence.dependencyGraph();
-        return !isWithValidAgentTarget(targetRow)
-            && !colBValue.trim().isEmpty()
-            && colAValue.trim().isEmpty()
-            && colGValue.trim().isEmpty()
-            && formatter.formatCellValue(targetRow.getCell(RowOption.COLUMN_H.value())).trim().isEmpty();
+        String colHValue = formatter.formatCellValue(targetRow.getCell(RowOption.COLUMN_H.value()));
+        // TODO: Maybe do some sentiment analysis for further confidence?
+        // Sentence maybeSentence = new Sentence(colBValue);
+        // SemanticGraph x = maybeSentence.dependencyGraph();
+        Boolean ruleCheck = !(contactIdValue.matcher(colBValue).matches())
+                && !colBValue.trim().isEmpty()
+                && colAValue.trim().isEmpty()
+                && colGValue.trim().isEmpty()
+                && colHValue.trim().isEmpty();
+        Duration methodDuration = Duration.between(methodStartTime, new Date().toInstant());
+        return ruleCheck;
     }
 
-    public static Boolean isWithOverflowCommentRow(Set<Row> targetRows) {
+    public static Boolean isWithValidOverflowComment(Set<Row> targetRows) {
         return targetRows.stream()
-            .map(Rules::isWithOverflowCommentRow)
+            .map(Rules::isWithValidOverflowComment)
             .reduce(true, (r1, r2) -> r1 && r2);
     }
 
@@ -88,6 +107,6 @@ public class Rules {
     }
 
     public static Boolean isIgnoredRow(Row targetRow) {
-        return !isWithValidAgentTarget(targetRow) && !isWithValidHeadersRow(targetRow) && !isWithOverflowCommentRow(targetRow);
+        return !isWithValidAgentTarget(targetRow) && !isWithValidHeadersRow(targetRow) && !isWithValidOverflowComment(targetRow);
     }
 }

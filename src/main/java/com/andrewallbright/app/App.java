@@ -1,5 +1,7 @@
 package com.andrewallbright.app;
 
+import com.andrewallbright.app.models.ValidTargetAgentRow;
+import com.andrewallbright.app.models.ValidOverflowCommentRow;
 import org.apache.commons.cli.*;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.ss.usermodel.*;
@@ -10,13 +12,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import com.andrewallbright.app.options.*;
 import com.andrewallbright.app.rules.Rules;
-
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.mapping;
-import static java.util.stream.Collectors.toList;
 
 
 public class App {
@@ -44,13 +43,11 @@ public class App {
                 Instant wbOpenComplete = new Date().toInstant();
                 Duration workbookOpenDuration = Duration.between(wbOpenStartTime, wbOpenComplete);
                 Sheet sheet = wb.getSheetAt(SheetOption.PRIMARY_SHEET.value());
-
-                System.out.println("Row Breaks" + Arrays.toString(sheet.getRowBreaks());
                 int totalRowsProcessed = sheet.getPhysicalNumberOfRows();
 
                 // TODO: Find out better way to write below code.  Ideally, I could use (Row row : sheet1)
                 // generate a streamable collection.
-                HashSet<Row> rowList = new HashSet<>();
+                List<Row> rowList = new ArrayList<>();
                 for (Row row : sheet) rowList.add(row);
 
                 Set<Row> headerRow = rowList.stream()
@@ -65,62 +62,64 @@ public class App {
                     })
                     .collect(Collectors.toSet());
 
-                Set<Row> ignoredRows = rowList.stream()
-                    .filter(Rules::isIgnoredRow)
-                    .collect(Collectors.toSet());
-
-                Set<String> uniqueAgentNames = rowList.stream()
-                    .filter(r -> !Rules.isWithValidHeadersRow(r))
-                    .map(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_H.value())))
-                    .collect(Collectors.toSet());
-
-                Set<String> uniqueAgentIds = rowList.stream()
-                    .filter(r -> !Rules.isWithValidHeadersRow(r))
-                    .map(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_A.value())))
-                    .collect(Collectors.toSet());
-
                 // TODO: Do something with these variables
-                Set<Row> validTargetRows = rowList.stream()
-                    .filter(r -> !Rules.isWithValidHeadersRow(r))
-                    .filter(Rules::isWithValidAgentTarget)
-                    .collect(Collectors.toSet());
+//                Set<Row> ignoredRows = rowList.stream()
+//                    .filter(Rules::isIgnoredRow)
+//                    .collect(Collectors.toSet());
+//
+//                Set<String> uniqueAgentNames = rowList.stream()
+//                    .filter(r -> !Rules.isWithValidHeadersRow(r))
+//                    .map(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_H.value())))
+//                    .collect(Collectors.toSet());
+//
+//                Set<String> uniqueAgentIds = rowList.stream()
+//                    .filter(r -> !Rules.isWithValidHeadersRow(r))
+//                    .map(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_A.value())))
+//                    .collect(Collectors.toSet());
+                // note: This seems to be a basis for a test assertion
+//                Set<Optional<String>> countOfOverflowComments = rowList
+//                    .parallelStream()
+//                    .filter(ValidOverflowCommentRow::isValid)
+//                    .map(ValidOverflowCommentRow::new)
+//                    .map(r -> r.agentOverflowComment)
+//                    .collect(Collectors.toSet());
 
-                Set<Row> rowsWithOverflowComments = rowList.stream()
-                    .filter(r -> !Rules.isWithValidHeadersRow(r))
-                    .filter(Rules::isWithOverflowCommentRow)
-                    .collect(Collectors.toSet());
+                List<Map.Entry<ValidTargetAgentRow, Optional<Set<ValidOverflowCommentRow>>>> targetRowsToOverflowRows = IntStream.range(0, rowList.size())
+                    .parallel()
+                    .filter(index -> {
+                        Row r = rowList.get(index);
+                        return ValidTargetAgentRow.isValid(r);
+                    })
+                    .mapToObj(index -> {
+                        Row r = rowList.get(index);
+                        HashMap<ValidTargetAgentRow, Optional<Set<ValidOverflowCommentRow>>> foo = new HashMap<>();
+                        int acceptableRowDistance = 20;
+                        Instant start = new Date().toInstant();
+                        Optional<Set<ValidOverflowCommentRow>> correspondingOverflowCommentRows =
+                            ValidTargetAgentRow.findCorrespondingOverflowCommentRows(
+                                rowList.stream().skip(index + 1).limit(acceptableRowDistance).collect(Collectors.toList()),
+                                1
+                            );
+                        Duration end = Duration.between(start, new Date().toInstant());
+                        foo.put(new ValidTargetAgentRow(r), correspondingOverflowCommentRows);
+                        return foo;
+                    })
+                    .flatMap((map) -> map.entrySet().stream())
+                    .collect(Collectors.toList());
 
-//                Map<String, List<Row>> x = rowList.stream()
-//                    .collect(groupingBy(
-//                        r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_A.value())),
-//                        mapping(r -> r, toList())
-//                    ));
+                List<Map.Entry<ValidTargetAgentRow, Optional<Set<ValidOverflowCommentRow>>>> agentRowsWithOverflowComments = targetRowsToOverflowRows.stream()
+                    .filter(entry -> entry.getValue().isPresent())
+                    .collect(Collectors.toList());
 
-                Map<String, List<String>> y = rowList.stream()
-                    .filter(r -> Rules.isWithValidAgentTarget(r) || Rules.isWithOverflowCommentRow(r))
-                    .sorted(Comparator.comparing(Row::getRowNum))
-                    .collect(groupingBy(
-                        r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_A.value())),
-                        mapping(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_H.value())), toList())
-                    ));
-
-                Map<String, List<String>> y = rowList.stream()
-                        .filter(r -> Rules.isWithValidAgentTarget(r) || Rules.isWithOverflowCommentRow(r))
-                        .sorted(Comparator.comparing(Row::getRowNum))
-                        .collect(groupingBy(
-                                r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_A.value())),
-                                mapping(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_H.value())), toList())
-                        ));
-//                Map<String, List<Row>> z = rowList.stream()
-//                    .filter(r -> Rules.isWithValidAgentTarget(r) || Rules.isWithOverflowCommentRow(r));
+                System.out.println("here");
 
                 System.out.println("Workbook Open Time: " + App.humanReadableSeconds(workbookOpenDuration.getSeconds()));
                 headerRowColVals.forEach((headerVal) -> System.out.println("Header Value: " + headerVal));
                 System.out.println("total number of rows processed: " + totalRowsProcessed);
-                System.out.println("# of Unique Agent Names: " + uniqueAgentNames.size());
-                System.out.println("# of Unique Agent Ids: " + uniqueAgentIds.size());
-                System.out.println("# of ignored rows: " + ignoredRows.size());
-                System.out.println("# of rows that match rule set: " + (totalRowsProcessed - ignoredRows.size()));
+//                System.out.println("# of Unique Agent Names: " + uniqueAgentNames.size());
+//                System.out.println("# of Unique Agent Ids: " + uniqueAgentIds.size());
+//                System.out.println("# of ignored rows: " + ignoredRows.size());
+//                System.out.println("# of rows that match rule set: " + (totalRowsProcessed - ignoredRows.size()));
 
                 System.out.println("Program End");
                 programDuration = Duration.between(startTime, new Date().toInstant());
