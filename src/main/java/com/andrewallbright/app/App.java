@@ -34,7 +34,7 @@ public class App {
 
         Options options = new Options();
         options.addOption("i", true, "Input file");
-        options.addOption("o", false, "Output file");
+        options.addOption("o", true, "Output file");
         CommandLineParser parser = new DefaultParser();
         CommandLine cmd = parser.parse(options, args);
 
@@ -84,27 +84,22 @@ public class App {
                     .flatMap((map) -> map.entrySet().stream())
                     .collect(Collectors.toList());
 
-                List<Map.Entry<ValidTargetAgentRow, Optional<Set<ValidOverflowCommentRow>>>> agentRowsWithPresentOverflowComments = targetRowsToOverflowRows.stream()
-                    .filter(entry -> entry.getValue().isPresent())
-                    .collect(Collectors.toList());
-
-                // TODO: Set values of overflow comments of OverflowCommentRow to agent comments of TargetAgentRow
-                // Create or get in-memory representation of original file
-                // For each "agent row with present overflow comments" do "data normalization" operations
+                // Set values of overflow comments of OverflowCommentRow to agent comments of TargetAgentRow
+                // Bonus: count how many agent comments from target rows have quotation marks present in the cell (REGEX)
                 targetRowsToOverflowRows.stream()
                     .forEach(entry -> {
                         ValidTargetAgentRow targetRow = entry.getKey();
                         Optional<Set<ValidOverflowCommentRow>> overflowCommentRows = entry.getValue();
-                        // ensure overflow comments are sorted by row number
                         String combinedComments =
                             "\"" +
                             targetRow.agentComment.orElseGet(String::new) +
                             (overflowCommentRows.map(validOverflowCommentRows -> validOverflowCommentRows.stream()
+                                // ensure overflow comments are sorted by row number
+                                .sorted(Comparator.comparingInt(r -> r.internalRowRef.getRowNum()))
                                 .map(r -> r.agentOverflowComment.get())
-                                .collect(Collectors.joining(", "))
+                                .collect(Collectors.joining("\n"))
                                 ).orElse(""))
                             + "\"";
-//                        System.out.println("row " + targetRow.getRowNum() + ": " + combinedComments);
                         // TODO: Rewrite below section to deal with nulls more elegantly.
                         if (targetRow.internalRowRef != null) {
                             Cell cell = (
@@ -121,23 +116,8 @@ public class App {
                         } else {
                             System.out.println("null row ref for " + targetRow.getRowNum());
                         }
-//                        Optional.of(
-//
-//                        ).ifPresent(r -> {
-//                            Optional.of(r).ifPresent(row -> {
-//                                Optional<Cell> cell = Optional.of(
-//                                    row.getCell(
-//                                        ValidTargetAgentRow.agentCommentCell
-//                                    )
-//                                );
-//                                cell.ifPresent(c -> c.setCellValue(combinedComments));
-//                            });
-//                        });
-                        // join list on Excel's version of newlines
-                        // update target agent row's agent comments column with additional overflow comments value
                     });
-                // For each agent row, add quotation marks around the column values
-                // Bonus: count how many agent comments from target rows have quotation marks present in the cell (REGEX)
+
 
                 // NOTE: Below seems to be a basis for a test assertion
                 // TODO: Work on App tests in JUnit
@@ -157,14 +137,21 @@ public class App {
                 // Above should be false, as written, because there are invalid agent rows that have overflow comments.
                 // end "basis for test assertion" section
 
-                Instant fileWriteStartTime = new Date().toInstant();
-                wb.write(new FileOutputStream(new File("picture.xlsx")));
-                Instant fileWriteEndTime = new Date().toInstant();
+                if (cmd.hasOption("o")) {
+                    Instant fileWriteStartTime = new Date().toInstant();
+                    // TODO: Figure out why cmd.getOptionValue("o") expression is returning null
+                    Optional<String> outputFileName = Optional.of(cmd.getOptionValue("o"));
+                    System.out.println(outputFileName);
+                    File outputFile = new File(outputFileName.orElse("../Processed Data.xlsx"));
+                    outputFile.createNewFile();
+                    wb.write(new FileOutputStream(outputFile));
+                    Instant fileWriteEndTime = new Date().toInstant();
+                    System.out.println("File Write Time: " + App.humanReadableSeconds(
+                        Duration.between(fileWriteStartTime, fileWriteEndTime).getSeconds()
+                    ));
+                }
 
                 System.out.println("Workbook Open Time: " + App.humanReadableSeconds(workbookOpenDuration.getSeconds()));
-                System.out.println("File Write Time: " + App.humanReadableSeconds(
-                    Duration.between(fileWriteStartTime, fileWriteEndTime).getSeconds()
-                ));
                 System.out.println("Header values: ");
                 headerRowColVals.forEach((headerVal) -> System.out.print(headerVal + ", "));
                 System.out.println();

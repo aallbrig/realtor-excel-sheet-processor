@@ -15,7 +15,7 @@ import java.util.Set;
 public class ValidOverflowCommentRow implements ValidRow {
     private static DataFormatter formatter;
     static { formatter = new DataFormatter(); }
-    private Row internalRowRef;
+    public Row internalRowRef;
     public Optional<String> agentOverflowComment;
 
     public ValidOverflowCommentRow(Row r) {
