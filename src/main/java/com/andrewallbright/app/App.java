@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import com.andrewallbright.app.options.*;
 import com.andrewallbright.app.rules.Rules;
@@ -50,7 +51,9 @@ public class App {
                 List<Row> rowList = new ArrayList<>();
                 for (Row row : sheet) rowList.add(row);
 
-                Set<Row> headerRow = rowList.stream()
+                Stream<Row> completeRowListStream = rowList.parallelStream();
+
+                Set<Row> headerRow = completeRowListStream
                     .filter(Rules::isWithValidHeadersRow)
                     .collect(Collectors.toSet());
 
@@ -64,10 +67,7 @@ public class App {
 
                 List<Map.Entry<ValidTargetAgentRow, Optional<Set<ValidOverflowCommentRow>>>> targetRowsToOverflowRows = IntStream.range(0, rowList.size())
                     .parallel()
-                    .filter(index -> {
-                        Row r = rowList.get(index);
-                        return ValidTargetAgentRow.isValid(r);
-                    })
+                    .filter(index -> ValidTargetAgentRow.isValid(rowList.get(index)))
                     .mapToObj(index -> {
                         Row r = rowList.get(index);
                         HashMap<ValidTargetAgentRow, Optional<Set<ValidOverflowCommentRow>>> foo = new HashMap<>();
@@ -75,9 +75,10 @@ public class App {
                         Instant start = new Date().toInstant();
                         Optional<Set<ValidOverflowCommentRow>> correspondingOverflowCommentRows =
                             ValidTargetAgentRow.findCorrespondingOverflowCommentRows(
-                                rowList.stream().skip(index + 1).limit(acceptableRowDistance).collect(Collectors.toList()),
+                                completeRowListStream.skip(index + 1).limit(acceptableRowDistance).collect(Collectors.toList()),
                                 1
                             );
+                        // TODO: Find better perf system than this (look @ awesome java for libs)
                         Duration end = Duration.between(start, new Date().toInstant());
                         foo.put(new ValidTargetAgentRow(r), correspondingOverflowCommentRows);
                         return foo;
@@ -89,23 +90,40 @@ public class App {
                     .filter(entry -> entry.getValue().isPresent())
                     .collect(Collectors.toList());
 
-                // note: This seems to be a basis for a test assertion
-                Set<ValidOverflowCommentRow> overflowRowsFromAgentRows = agentRowsWithOverflowComments.stream()
-                    .map(Map.Entry::getValue).map(Optional::get).flatMap(Collection::stream).collect(Collectors.toSet());
-                Set<Optional<String>> overflowRowsFromCompleteRowSet = rowList
-                    .parallelStream()
-                    .filter(ValidOverflowCommentRow::isValid)
-                    .map(ValidOverflowCommentRow::new)
-                    .map(r -> r.agentOverflowComment)
-                    .collect(Collectors.toSet());
-                System.out.println("overflowRowsFromAgentRows.size() == overflowRowsFromCompleteRowSet.size() ?");
-                System.out.println(overflowRowsFromAgentRows.size() == overflowRowsFromCompleteRowSet.size());
+                // TODO: Set values of overflow comments of OverflowCommentRow to agent comments of TargetAgentRow
+                // Create or get in-memory representation of original file
+                // For each agent row with present overflow comments in rows beneath "data normalization"
+                    // ensure overflow comments are sorted by row number
+                    // join list on Excel's version of newlines
+                    // update target agent row's agent comments column with additional overflow comments value
+                // For each agent row, add quotation marks around the column values
+                // Bonus: count how many agent comments from target rows have quotation marks present in the cell (REGEX)
+
+                // NOTE: Below seems to be a basis for a test assertion
+                // TODO: Work on App tests in JUnit
+//                Set<ValidOverflowCommentRow> targetRowsWithPresentComments = agentRowsWithOverflowComments.stream()
+//                    .map(Map.Entry::getValue)
+//                    .map(Optional::get)
+//                    .flatMap(Collection::stream)
+//                    .collect(Collectors.toSet());
+//                Set<Optional<String>> overflowRowsFromProcessedTargetData = rowList
+//                    .parallelStream()
+//                    .filter(ValidOverflowCommentRow::isValid)
+//                    .map(ValidOverflowCommentRow::new)
+//                    .map(r -> r.agentOverflowComment)
+//                    .collect(Collectors.toSet());
+//                System.out.println("overflowRowsFromProcessedTargetData.size() == overflowRowsFromCompleteRowSet.size() ?");
+//                System.out.println(targetRowsWithPresentComments.size() == overflowRowsFromProcessedTargetData.size());
                 // Above should be false, as written, because there are invalid agent rows that have overflow comments.
+                // end "basis for test assertion" section
 
                 System.out.println("Workbook Open Time: " + App.humanReadableSeconds(workbookOpenDuration.getSeconds()));
-                headerRowColVals.forEach((headerVal) -> System.out.println("Header Value: " + headerVal));
+                System.out.println("Header values: ");
+                headerRowColVals.forEach((headerVal) -> System.out.print(headerVal + ", "));
+                System.out.println();
                 System.out.println("total number of rows processed: " + totalRowsProcessed);
-                // TODO: Do something with these variables
+                System.out.println("row count of rows probably deleted (given the number of the last row): " + (sheet.getLastRowNum() - totalRowsProcessed));
+                // TODO: Do something with these variables (delete: 1, test assertions: 0)
 //                Set<Row> ignoredRows = rowList.stream()
 //                    .filter(Rules::isIgnoredRow)
 //                    .collect(Collectors.toSet());

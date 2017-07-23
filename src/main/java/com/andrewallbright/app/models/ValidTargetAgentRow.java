@@ -17,26 +17,33 @@ public class ValidTargetAgentRow implements ValidRow {
     private Row internalRowRef;
     public Optional<String> agentName;
     public Optional<String> agentId;
+    public Optional<String> agentComment;
 
 
     public ValidTargetAgentRow(Row r) {
         internalRowRef = r;
         agentId = extractAgentId(r);
         agentName = extractAgentName(r);
+        agentComment = extractAgentComment(r);
     }
 
     static public boolean isValid(Row rowRef) {
         return Rules.isWithValidAgentTarget(rowRef);
     }
 
-    public Optional<String> extractAgentId(Row rowRef) {
-        String dataExtraction = formatter.formatCellValue(rowRef.getCell(RowOption.COLUMN_A.value()));
-        return this.isValid(rowRef) && !dataExtraction.isEmpty() ? Optional.of(dataExtraction) : Optional.empty();
+    private Optional<String> extractAgentComment(Row r) {
+        String dataExtraction = formatter.formatCellValue(r.getCell(RowOption.COLUMN_I.value()));
+        return this.isValid(r) && !dataExtraction.isEmpty() ? Optional.of(dataExtraction) : Optional.empty();
     }
 
-    public Optional<String> extractAgentName(Row rowRef) {
-        String dataExtraction = formatter.formatCellValue(rowRef.getCell(RowOption.COLUMN_H.value()));
-        return this.isValid(rowRef) && !dataExtraction.isEmpty() ? Optional.of(dataExtraction) : Optional.empty();
+    public Optional<String> extractAgentId(Row r) {
+        String dataExtraction = formatter.formatCellValue(r.getCell(RowOption.COLUMN_A.value()));
+        return this.isValid(r) && !dataExtraction.isEmpty() ? Optional.of(dataExtraction) : Optional.empty();
+    }
+
+    public Optional<String> extractAgentName(Row r) {
+        String dataExtraction = formatter.formatCellValue(r.getCell(RowOption.COLUMN_H.value()));
+        return this.isValid(r) && !dataExtraction.isEmpty() ? Optional.of(dataExtraction) : Optional.empty();
     }
 
     public static Optional<Set<ValidOverflowCommentRow>> findCorrespondingOverflowCommentRows(List<Row> rowList, int indexAwayFromTargetRow) {

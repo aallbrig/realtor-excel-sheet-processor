@@ -4,3 +4,4 @@
 1. Maven (dependency management & build tool)
 1. Apache POI (document processing)
 1. JUnit (testing)
+1. Regular Expressions
