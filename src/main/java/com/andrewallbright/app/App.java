@@ -7,13 +7,13 @@ import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.ss.usermodel.*;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import com.andrewallbright.app.options.*;
 import com.andrewallbright.app.rules.Rules;
@@ -51,9 +51,7 @@ public class App {
                 List<Row> rowList = new ArrayList<>();
                 for (Row row : sheet) rowList.add(row);
 
-                Stream<Row> completeRowListStream = rowList.parallelStream();
-
-                Set<Row> headerRow = completeRowListStream
+                Set<Row> headerRow = rowList.parallelStream()
                     .filter(Rules::isWithValidHeadersRow)
                     .collect(Collectors.toSet());
 
@@ -75,7 +73,7 @@ public class App {
                         Instant start = new Date().toInstant();
                         Optional<Set<ValidOverflowCommentRow>> correspondingOverflowCommentRows =
                             ValidTargetAgentRow.findCorrespondingOverflowCommentRows(
-                                completeRowListStream.skip(index + 1).limit(acceptableRowDistance).collect(Collectors.toList()),
+                                rowList.stream().skip(index + 1).limit(acceptableRowDistance).collect(Collectors.toList()),
                                 1
                             );
                         // TODO: Find better perf system than this (look @ awesome java for libs)
@@ -86,22 +84,64 @@ public class App {
                     .flatMap((map) -> map.entrySet().stream())
                     .collect(Collectors.toList());
 
-                List<Map.Entry<ValidTargetAgentRow, Optional<Set<ValidOverflowCommentRow>>>> agentRowsWithOverflowComments = targetRowsToOverflowRows.stream()
+                List<Map.Entry<ValidTargetAgentRow, Optional<Set<ValidOverflowCommentRow>>>> agentRowsWithPresentOverflowComments = targetRowsToOverflowRows.stream()
                     .filter(entry -> entry.getValue().isPresent())
                     .collect(Collectors.toList());
 
                 // TODO: Set values of overflow comments of OverflowCommentRow to agent comments of TargetAgentRow
                 // Create or get in-memory representation of original file
-                // For each agent row with present overflow comments in rows beneath "data normalization"
-                    // ensure overflow comments are sorted by row number
-                    // join list on Excel's version of newlines
-                    // update target agent row's agent comments column with additional overflow comments value
+                // For each "agent row with present overflow comments" do "data normalization" operations
+                targetRowsToOverflowRows.stream()
+                    .forEach(entry -> {
+                        ValidTargetAgentRow targetRow = entry.getKey();
+                        Optional<Set<ValidOverflowCommentRow>> overflowCommentRows = entry.getValue();
+                        // ensure overflow comments are sorted by row number
+                        String combinedComments =
+                            "\"" +
+                            targetRow.agentComment.orElseGet(String::new) +
+                            (overflowCommentRows.map(validOverflowCommentRows -> validOverflowCommentRows.stream()
+                                .map(r -> r.agentOverflowComment.get())
+                                .collect(Collectors.joining(", "))
+                                ).orElse(""))
+                            + "\"";
+//                        System.out.println("row " + targetRow.getRowNum() + ": " + combinedComments);
+                        // TODO: Rewrite below section to deal with nulls more elegantly.
+                        if (targetRow.internalRowRef != null) {
+                            Cell cell = (
+                                targetRow
+                                    .internalRowRef
+                                    .getCell(ValidTargetAgentRow.agentCommentCell) != null ?
+                                targetRow
+                                    .internalRowRef
+                                    .getCell(ValidTargetAgentRow.agentCommentCell)
+                                : targetRow
+                                        .internalRowRef.createCell(ValidTargetAgentRow.agentCommentCell)
+                            );
+                            cell.setCellValue(combinedComments);
+                        } else {
+                            System.out.println("null row ref for " + targetRow.getRowNum());
+                        }
+//                        Optional.of(
+//
+//                        ).ifPresent(r -> {
+//                            Optional.of(r).ifPresent(row -> {
+//                                Optional<Cell> cell = Optional.of(
+//                                    row.getCell(
+//                                        ValidTargetAgentRow.agentCommentCell
+//                                    )
+//                                );
+//                                cell.ifPresent(c -> c.setCellValue(combinedComments));
+//                            });
+//                        });
+                        // join list on Excel's version of newlines
+                        // update target agent row's agent comments column with additional overflow comments value
+                    });
                 // For each agent row, add quotation marks around the column values
                 // Bonus: count how many agent comments from target rows have quotation marks present in the cell (REGEX)
 
                 // NOTE: Below seems to be a basis for a test assertion
                 // TODO: Work on App tests in JUnit
-//                Set<ValidOverflowCommentRow> targetRowsWithPresentComments = agentRowsWithOverflowComments.stream()
+//                Set<ValidOverflowCommentRow> targetRowsWithPresentComments = agentRowsWithPresentOverflowComments.stream()
 //                    .map(Map.Entry::getValue)
 //                    .map(Optional::get)
 //                    .flatMap(Collection::stream)
@@ -117,7 +157,14 @@ public class App {
                 // Above should be false, as written, because there are invalid agent rows that have overflow comments.
                 // end "basis for test assertion" section
 
+                Instant fileWriteStartTime = new Date().toInstant();
+                wb.write(new FileOutputStream(new File("picture.xlsx")));
+                Instant fileWriteEndTime = new Date().toInstant();
+
                 System.out.println("Workbook Open Time: " + App.humanReadableSeconds(workbookOpenDuration.getSeconds()));
+                System.out.println("File Write Time: " + App.humanReadableSeconds(
+                    Duration.between(fileWriteStartTime, fileWriteEndTime).getSeconds()
+                ));
                 System.out.println("Header values: ");
                 headerRowColVals.forEach((headerVal) -> System.out.print(headerVal + ", "));
                 System.out.println();

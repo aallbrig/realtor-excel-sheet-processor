@@ -12,9 +12,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class ValidTargetAgentRow implements ValidRow {
-    private static DataFormatter formatter;
-    static { formatter = new DataFormatter(); }
-    private Row internalRowRef;
+    private static DataFormatter formatter = new DataFormatter();
+    public static int agentCommentCell = RowOption.COLUMN_I.value();
+    public static int agentIdCell = RowOption.COLUMN_A.value();
+    public static int agentNameCell = RowOption.COLUMN_H.value();
+    public Row internalRowRef;
     public Optional<String> agentName;
     public Optional<String> agentId;
     public Optional<String> agentComment;
@@ -32,24 +34,27 @@ public class ValidTargetAgentRow implements ValidRow {
     }
 
     private Optional<String> extractAgentComment(Row r) {
-        String dataExtraction = formatter.formatCellValue(r.getCell(RowOption.COLUMN_I.value()));
-        return this.isValid(r) && !dataExtraction.isEmpty() ? Optional.of(dataExtraction) : Optional.empty();
+        String dataExtraction = formatter.formatCellValue(r.getCell(agentCommentCell));
+        return isValid(r) && !dataExtraction.isEmpty() ? Optional.of(dataExtraction) : Optional.empty();
     }
 
     public Optional<String> extractAgentId(Row r) {
-        String dataExtraction = formatter.formatCellValue(r.getCell(RowOption.COLUMN_A.value()));
-        return this.isValid(r) && !dataExtraction.isEmpty() ? Optional.of(dataExtraction) : Optional.empty();
+        String dataExtraction = formatter.formatCellValue(r.getCell(agentIdCell));
+        return isValid(r) && !dataExtraction.isEmpty() ? Optional.of(dataExtraction) : Optional.empty();
     }
 
     public Optional<String> extractAgentName(Row r) {
-        String dataExtraction = formatter.formatCellValue(r.getCell(RowOption.COLUMN_H.value()));
-        return this.isValid(r) && !dataExtraction.isEmpty() ? Optional.of(dataExtraction) : Optional.empty();
+        String dataExtraction = formatter.formatCellValue(r.getCell(agentNameCell));
+        return isValid(r) && !dataExtraction.isEmpty() ? Optional.of(dataExtraction) : Optional.empty();
     }
 
     public static Optional<Set<ValidOverflowCommentRow>> findCorrespondingOverflowCommentRows(List<Row> rowList, int indexAwayFromTargetRow) {
+        // NOTE: If rowList is too large, that will significantly increase time of operation.
         Set<Row> rowRange = rowList.parallelStream().limit(indexAwayFromTargetRow).collect(Collectors.toSet());
         long validTargetRows = rowRange.parallelStream().filter(ValidTargetAgentRow::isValid).count();
         long invalidTargetRows = rowRange.parallelStream().filter(InvalidTargetAgentRow::isValid).count();
+        // Below code assumes that there only exists "invalid target rows", "valid target rows" and "overflow comment";
+        // if there exists any type except "overflow comment" type then stop increasing row range
         boolean stopCollecting = validTargetRows > 0 || invalidTargetRows > 0;
         if (stopCollecting) {
             Set<ValidOverflowCommentRow> overflowCommentRows =
