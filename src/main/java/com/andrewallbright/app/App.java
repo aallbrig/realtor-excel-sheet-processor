@@ -69,7 +69,7 @@ public class App {
                     .mapToObj(index -> {
                         Row r = rowList.get(index);
                         HashMap<ValidTargetAgentRow, Optional<Set<ValidOverflowCommentRow>>> foo = new HashMap<>();
-                        int acceptableRowDistance = 20;
+                        int acceptableRowDistance = 120;
                         Instant start = new Date().toInstant();
                         Optional<Set<ValidOverflowCommentRow>> correspondingOverflowCommentRows =
                             ValidTargetAgentRow.findCorrespondingOverflowCommentRows(
@@ -92,8 +92,8 @@ public class App {
                         Optional<Set<ValidOverflowCommentRow>> overflowCommentRows = entry.getValue();
                         String combinedComments =
                             "\"" +
-                            targetRow.agentComment.orElseGet(String::new) +
-                            (overflowCommentRows.map(validOverflowCommentRows -> validOverflowCommentRows.stream()
+                            (targetRow.agentComment.map(s -> s + (overflowCommentRows.isPresent() ? "\n" : "")).orElse(""))
+                            + (overflowCommentRows.map(validOverflowCommentRows -> validOverflowCommentRows.stream()
                                 // ensure overflow comments are sorted by row number
                                 .sorted(Comparator.comparingInt(r -> r.internalRowRef.getRowNum()))
                                 .map(r -> r.agentOverflowComment.get())
@@ -156,25 +156,29 @@ public class App {
                 headerRowColVals.forEach((headerVal) -> System.out.print(headerVal + ", "));
                 System.out.println();
                 System.out.println("total number of rows processed: " + totalRowsProcessed);
-                System.out.println("row count of rows probably deleted (given the number of the last row): " + (sheet.getLastRowNum() - totalRowsProcessed));
-                // TODO: Do something with these variables (delete: 1, test assertions: 0)
+                System.out.println("# of rows probably deleted (given the number of the last row): " + (sheet.getLastRowNum() - totalRowsProcessed));
+                // TODO: Do something with these variables (delete: 1, test assertions: 0, output stats: 1)
 //                Set<Row> ignoredRows = rowList.stream()
 //                    .filter(Rules::isIgnoredRow)
 //                    .collect(Collectors.toSet());
-//
-//                Set<String> uniqueAgentNames = rowList.stream()
-//                    .filter(r -> !Rules.isWithValidHeadersRow(r))
-//                    .map(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_H.value())))
-//                    .collect(Collectors.toSet());
-//
-//                Set<String> uniqueAgentIds = rowList.stream()
-//                    .filter(r -> !Rules.isWithValidHeadersRow(r))
-//                    .map(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_A.value())))
-//                    .collect(Collectors.toSet());
-//                System.out.println("# of Unique Agent Names: " + uniqueAgentNames.size());
-//                System.out.println("# of Unique Agent Ids: " + uniqueAgentIds.size());
 //                System.out.println("# of ignored rows: " + ignoredRows.size());
-//                System.out.println("# of rows that match rule set: " + (totalRowsProcessed - ignoredRows.size()));
+
+                Set<String> uniqueAgentNames = rowList.stream()
+                    .filter(r -> !Rules.isWithValidHeadersRow(r))
+                    .map(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_H.value())))
+                    .collect(Collectors.toSet());
+
+                Set<String> uniqueAgentIds = rowList.stream()
+                    .filter(r -> !Rules.isWithValidHeadersRow(r))
+                    .map(r -> formatter.formatCellValue(r.getCell(RowOption.COLUMN_A.value())))
+                    .collect(Collectors.toSet());
+                System.out.println("# of rows that matched rule set and were modified: " + targetRowsToOverflowRows.size());
+                System.out.println("# of rows that match rules set and have overflow comments that were added to Column I: "
+                    + targetRowsToOverflowRows.parallelStream()
+                        .filter(entry -> entry.getValue().isPresent())
+                        .collect(Collectors.toSet()).size());
+                System.out.println("# of unique agent names: " + uniqueAgentNames.size());
+                System.out.println("# of unique agent ids: " + uniqueAgentIds.size());
 
                 System.out.println("Program End");
                 programDuration = Duration.between(startTime, new Date().toInstant());

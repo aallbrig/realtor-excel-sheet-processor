@@ -33,12 +33,11 @@ public class Rules {
 
     public static Boolean isWithValidAgentTarget(Row targetRow) {
         String agentIdPattern = "\\d+";
-        String agentNamePattern = "^([a-zA-Z]{2,}\\s[a-zA-z]{1,}'?-?[a-zA-Z]{2,}\\s?([a-zA-Z]{1,})?)";
         String maybeAgentId = formatter.formatCellValue(targetRow.getCell(RowOption.COLUMN_A.value()));
         String maybeAgentName = formatter.formatCellValue(targetRow.getCell(RowOption.COLUMN_H.value()));
         return
             maybeAgentId.matches(agentIdPattern)
-            && maybeAgentName.matches(agentNamePattern)
+            && maybeAgentName.length() > 3
             && !maybeAgentId.trim().isEmpty()
             && !maybeAgentName.trim().isEmpty();
     }
