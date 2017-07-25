@@ -12,28 +12,21 @@ import java.util.HashSet;
 import static org.junit.Assert.assertEquals;
 
 public class RulesTest {
-    Workbook wb;
-    Sheet sheet;
-    Integer currentRowIndex;
-    static String testSheetName;
-    {
-        testSheetName = "test sheet";
-    }
+    private Sheet sheet;
+    private Integer currentRowIndex;
+
     @Before
     public void setUp() throws Exception {
-        wb = new HSSFWorkbook();
+        Workbook wb = new HSSFWorkbook();
+        String testSheetName = "test sheet";
         sheet = wb.createSheet(testSheetName);
         currentRowIndex = 0;
     }
 
-    @After
-    public void tearDown() throws Exception {
-
-    }
     @Test
     public void isFirstRow() throws Exception {
-        Row validRow = sheet.createRow(++currentRowIndex);
-        Row invalidRow = sheet.createRow(++currentRowIndex);
+        Row validRow = sheet.createRow(currentRowIndex++);
+        Row invalidRow = sheet.createRow(currentRowIndex++);
         assertEquals(true, Rules.isFirstRow(validRow));
         assertEquals(false, Rules.isFirstRow(invalidRow));
     }
@@ -74,21 +67,23 @@ public class RulesTest {
         validAgentRowAndOverflowCommentRow.add(validRow);
         validAgentRowAndOverflowCommentRow.add(validOverflowComment);
 
-        Row invalidRow = sheet.createRow(++currentRowIndex);
+        Row invalidRow = sheet.createRow(currentRowIndex++);
         invalidRow.createCell(RowOption.COLUMN_A.value()).setCellValue("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
         invalidRow.createCell(RowOption.COLUMN_H.value()).setCellValue(123456789);
 
-        Row invalidAgentNameOnly = sheet.createRow(++currentRowIndex);
-        invalidAgentNameOnly.createCell(RowOption.COLUMN_A.value()).setCellValue(123456789);
-        invalidAgentNameOnly.createCell(RowOption.COLUMN_H.value()).setCellValue(123456789);
+        Row invalidRowOptionB = sheet.createRow(currentRowIndex++);
 
-        Row invalidAgentIdOnly = sheet.createRow(++currentRowIndex);
+        Row invalidAgentNameOnly = sheet.createRow(currentRowIndex++);
+        invalidAgentNameOnly.createCell(RowOption.COLUMN_A.value()).setCellValue(123456789);
+        invalidAgentNameOnly.createCell(RowOption.COLUMN_H.value()).setCellValue("AB");
+
+        Row invalidAgentIdOnly = sheet.createRow(currentRowIndex++);
         invalidAgentIdOnly.createCell(RowOption.COLUMN_A.value()).setCellValue("BL Agent ID");
         invalidAgentIdOnly.createCell(RowOption.COLUMN_H.value()).setCellValue("Tom Bob");
 
         HashSet<Row> invalidAgentRowAndOverflowCommentRow = new HashSet<>();
-        validAgentRowAndOverflowCommentRow.add(validOverflowComment);
-        validAgentRowAndOverflowCommentRow.add(validRow);
+        invalidAgentRowAndOverflowCommentRow.add(invalidRowOptionB);
+        invalidAgentRowAndOverflowCommentRow.add(validOverflowComment);
 
         assertEquals(true, Rules.isWithValidAgentTarget(validRow));
         assertEquals(true, Rules.isWithValidAgentTarget(validRows));
@@ -97,25 +92,4 @@ public class RulesTest {
         assertEquals(false, Rules.isWithValidAgentTarget(invalidAgentNameOnly));
         assertEquals(false, Rules.isWithValidAgentTarget(invalidAgentIdOnly));
     }
-
-//    @Test
-//    public void isWithValidOverflowComment() throws Exception {
-//        Workbook wb = new HSSFWorkbook();
-//        Sheet sheet = wb.createSheet("test sheet");
-//        Row validRow = sheet.createRow(1);
-//        Row invalidRow = sheet.createRow(2);
-//        assertEquals(true, Rules.isWithValidOverflowComment(validRow));
-//        assertEquals(false, Rules.isWithValidOverflowComment(invalidRow));
-//    }
-//
-//
-//    @Test
-//    public void isIgnoredRow() throws Exception {
-//        Workbook wb = new HSSFWorkbook();
-//        Sheet sheet = wb.createSheet("test sheet");
-//        Row validRow = sheet.createRow(1);
-//        Row invalidRow = sheet.createRow(2);
-//        assertEquals(true, Rules.isIgnoredRow(validRow));
-//        assertEquals(false, Rules.isIgnoredRow(invalidRow));
-//    }
 }

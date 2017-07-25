@@ -22,11 +22,6 @@ public class Rules {
         contactIdValue = Pattern.compile("^(((\\w){3,}+(-)?){4,})");
     }
 
-    public static Boolean isRowWithDate(Row targetRow) {
-        Cell maybeDate = targetRow.getCell(RowOption.COLUMN_C.value());
-        return maybeDate.getCellTypeEnum() == CellType.NUMERIC && HSSFDateUtil.isCellDateFormatted(maybeDate);
-    }
-
     public static boolean isFirstRow(Row targetRow) {
         return targetRow.getRowNum() == 0;
     }
@@ -54,27 +49,16 @@ public class Rules {
     }
 
     public static Boolean isWithValidOverflowComment(Row targetRow) {
-        Instant methodStartTime = new Date().toInstant();
         String colAValue = formatter.formatCellValue(targetRow.getCell(RowOption.COLUMN_A.value()));
         String colBValue = formatter.formatCellValue(targetRow.getCell(RowOption.COLUMN_B.value()));
         String colGValue = formatter.formatCellValue(targetRow.getCell(RowOption.COLUMN_G.value()));
         String colHValue = formatter.formatCellValue(targetRow.getCell(RowOption.COLUMN_H.value()));
         // TODO: Maybe do some sentiment analysis for further confidence?
-        // Sentence maybeSentence = new Sentence(colBValue);
-        // SemanticGraph x = maybeSentence.dependencyGraph();
-        Boolean ruleCheck = !(contactIdValue.matcher(colBValue).matches())
+        return !(contactIdValue.matcher(colBValue).matches())
                 && !colBValue.trim().isEmpty()
                 && colAValue.trim().isEmpty()
                 && colGValue.trim().isEmpty()
                 && colHValue.trim().isEmpty();
-        Duration methodDuration = Duration.between(methodStartTime, new Date().toInstant());
-        return ruleCheck;
-    }
-
-    public static Boolean isWithValidOverflowComment(Set<Row> targetRows) {
-        return targetRows.stream()
-            .map(Rules::isWithValidOverflowComment)
-            .reduce(true, (r1, r2) -> r1 && r2);
     }
 
     public static Boolean isWithValidHeadersRow(Row targetRow) {
@@ -90,22 +74,11 @@ public class Rules {
         String colGVal = formatter.formatCellValue(targetRow.getCell(RowOption.COLUMN_G.value()));
         String colHVal = formatter.formatCellValue(targetRow.getCell(RowOption.COLUMN_H.value()));
         String colIVal = formatter.formatCellValue(targetRow.getCell(RowOption.COLUMN_I.value()));
-        Boolean ruleCheck = colAVal.contains(desiredColAVal)
+        return colAVal.contains(desiredColAVal)
             && colBVal.contains(desiredColBVal)
             && colCVal.contains(desiredColCVal)
             && colGVal.contains(desiredColGVal)
             && colHVal.contains(desiredColHVal)
             && colIVal.contains(desiredColIVal);
-        return ruleCheck;
-    }
-
-    public static Boolean isWithValidHeadersRow(Set<Row> targetRows) {
-        return targetRows.stream()
-            .map(Rules::isWithValidHeadersRow)
-            .reduce(true, (r1, r2) -> r1 && r2);
-    }
-
-    public static Boolean isIgnoredRow(Row targetRow) {
-        return !isWithValidAgentTarget(targetRow) && !isWithValidHeadersRow(targetRow) && !isWithValidOverflowComment(targetRow);
     }
 }
