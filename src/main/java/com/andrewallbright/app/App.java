@@ -84,7 +84,6 @@ public class App {
                     .flatMap((map) -> map.entrySet().stream())
                     .collect(Collectors.toList());
 
-                // Set values of overflow comments of OverflowCommentRow to agent comments of TargetAgentRow
                 // Bonus: count how many agent comments from target rows have quotation marks present in the cell (REGEX)
                 targetRowsToOverflowRows.stream()
                     .forEach(entry -> {
@@ -93,49 +92,24 @@ public class App {
                         String combinedComments =
                             "\"" +
                             (targetRow.agentComment.map(s -> s + (overflowCommentRows.isPresent() ? "\n" : "")).orElse(""))
-                            + (overflowCommentRows.map(validOverflowCommentRows -> validOverflowCommentRows.stream()
-                                // ensure overflow comments are sorted by row number
-                                .sorted(Comparator.comparingInt(r -> r.internalRowRef.getRowNum()))
-                                .map(r -> r.agentOverflowComment.get())
-                                .collect(Collectors.joining("\n"))
-                                ).orElse(""))
+                            + (
+                                overflowCommentRows.map(validOverflowCommentRows ->
+                                    validOverflowCommentRows.stream()
+                                        // ensure overflow comments are sorted by row number
+                                        .sorted(Comparator.comparingInt(r -> r.internalRowRef.getRowNum()))
+                                        .map(r -> r.agentOverflowComment.get())
+                                        .collect(Collectors.joining("\n"))
+                                )
+                                .orElse("")
+                            )
                             + "\"";
-                        // TODO: Rewrite below section to deal with nulls more elegantly.
-                        if (targetRow.internalRowRef != null) {
-                            Cell cell = (
-                                targetRow
-                                    .internalRowRef
-                                    .getCell(ValidTargetAgentRow.agentCommentCell) != null ?
-                                targetRow
-                                    .internalRowRef
-                                    .getCell(ValidTargetAgentRow.agentCommentCell)
-                                : targetRow
-                                        .internalRowRef.createCell(ValidTargetAgentRow.agentCommentCell)
-                            );
+                        Optional.of(targetRow.internalRowRef).map(r -> {
+                            Cell cell = Optional.ofNullable(r.getCell(ValidTargetAgentRow.agentCommentCell))
+                                .orElseGet(() -> r.createCell(ValidTargetAgentRow.agentCommentCell));
                             cell.setCellValue(combinedComments);
-                        } else {
-                            System.out.println("null row ref for " + targetRow.getRowNum());
-                        }
+                            return cell;
+                        });
                     });
-
-
-                // NOTE: Below seems to be a basis for a test assertion
-                // TODO: Work on App tests in JUnit
-//                Set<ValidOverflowCommentRow> targetRowsWithPresentComments = agentRowsWithPresentOverflowComments.stream()
-//                    .map(Map.Entry::getValue)
-//                    .map(Optional::get)
-//                    .flatMap(Collection::stream)
-//                    .collect(Collectors.toSet());
-//                Set<Optional<String>> overflowRowsFromProcessedTargetData = rowList
-//                    .parallelStream()
-//                    .filter(ValidOverflowCommentRow::isValid)
-//                    .map(ValidOverflowCommentRow::new)
-//                    .map(r -> r.agentOverflowComment)
-//                    .collect(Collectors.toSet());
-//                System.out.println("overflowRowsFromProcessedTargetData.size() == overflowRowsFromCompleteRowSet.size() ?");
-//                System.out.println(targetRowsWithPresentComments.size() == overflowRowsFromProcessedTargetData.size());
-                // Above should be false, as written, because there are invalid agent rows that have overflow comments.
-                // end "basis for test assertion" section
 
                 if (cmd.hasOption("o")) {
                     Instant fileWriteStartTime = new Date().toInstant();
@@ -157,11 +131,6 @@ public class App {
                 System.out.println();
                 System.out.println("total number of rows processed: " + totalRowsProcessed);
                 System.out.println("# of rows probably deleted (given the number of the last row): " + (sheet.getLastRowNum() - totalRowsProcessed));
-                // TODO: Do something with these variables (delete: 1, test assertions: 0, output stats: 1)
-//                Set<Row> ignoredRows = rowList.stream()
-//                    .filter(Rules::isIgnoredRow)
-//                    .collect(Collectors.toSet());
-//                System.out.println("# of ignored rows: " + ignoredRows.size());
 
                 Set<String> uniqueAgentNames = rowList.stream()
                     .filter(r -> !Rules.isWithValidHeadersRow(r))
